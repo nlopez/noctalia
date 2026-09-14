@@ -233,8 +233,6 @@ namespace shell::dock {
     const auto h = static_cast<float>(instance.surface->height());
 
     const auto& shadowConfig = deps.config.config().shell.shadow;
-    const auto itemCount = instance.items.size() + shell::dock::dockLauncherButtonCount(cfg);
-    const auto panelGeometry = shell::dock::computePanelGeometry(cfg, shadowConfig, w, h, itemCount);
     const auto concave = shell::dock::dockConcaveShape(cfg);
 
     if (instance.sceneRoot == nullptr) {
@@ -306,6 +304,14 @@ namespace shell::dock {
       instance.panel->setLogicalInset(concave.logicalInset);
       instance.panel->setRadii(concave.radii);
     }
+
+    // Computed only now: on the very first build (the branch above), items are populated by
+    // callbacks.rebuildItems partway through it, so an itemCount read any earlier would still
+    // see the pre-rebuild (often empty) list. Only full_width_reveal's centering actually reads
+    // itemCount here; the tight-fit surface size itself already came from resizeSurface, which
+    // runs after items change and is reflected in `w`/`h` above regardless of build order.
+    const auto itemCount = instance.items.size() + shell::dock::dockLauncherButtonCount(cfg);
+    const auto panelGeometry = shell::dock::computePanelGeometry(cfg, shadowConfig, w, h, itemCount);
 
     // Update root size on reconfigure.
     instance.sceneRoot->setSize(w, h);
