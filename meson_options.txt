@@ -6,3 +6,9 @@ option(
   value: false,
   description: 'Optimize for the build machine CPU; output may not be portable',
 )
+option(
+  'build_label',
+  type: 'string',
+  value: '',
+  description: 'Optional label appended to the version shown in the UI and --version (e.g. a personal build identifier)',
+)

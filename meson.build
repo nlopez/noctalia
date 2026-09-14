@@ -1088,6 +1088,7 @@ _noctalia_compile_definitions = [
   '-DNOCTALIA_INSTALL_PREFIX="' + get_option('prefix') + '"',
   '-DNOCTALIA_INSTALL_DATADIR="' + get_option('datadir') + '"',
   '-DNOCTALIA_VERSION="' + meson.project_version() + '"',
+  '-DNOCTALIA_BUILD_LABEL="' + get_option('build_label') + '"',
 ] + jemalloc_cpp_args
 
 _noctalia_cpp_args = [

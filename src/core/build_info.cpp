@@ -8,6 +8,8 @@ namespace noctalia::build_info {
 
   std::string_view revision() noexcept { return NOCTALIA_GIT_REVISION; }
 
+  std::string_view buildLabel() noexcept { return NOCTALIA_BUILD_LABEL; }
+
   std::string displayVersion() {
     std::string label = "v";
     label += version();
@@ -18,6 +20,12 @@ namespace noctalia::build_info {
       label += " (";
       label += rev;
       label += ')';
+    }
+
+    if (const std::string_view build = buildLabel(); !build.empty()) {
+      label += " [";
+      label += build;
+      label += ']';
     }
     return label;
   }
