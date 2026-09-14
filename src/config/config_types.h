@@ -637,7 +637,10 @@ struct DockConfig {
   bool showRunning = true;             // also show running apps not in pinned list
   bool autoHide = false;               // slide out when not hovered (overlay mode)
   bool smartAutoHide = false;          // hide while the active workspace has windows; show when it is empty
-  std::string layer = "top";           // top | overlay
+  // When auto-hidden, extend the pointer reveal strip across the whole screen edge instead of
+  // just the width (or height, for a side dock) of the dock's own icon row.
+  bool fullWidthReveal = false;
+  std::string layer = "top"; // top | overlay
 
   [[nodiscard]] constexpr bool isAutoHideEnabled() const noexcept { return autoHide || smartAutoHide; }
   bool reserveSpace = true;         // reserve compositor exclusive zone; applies with or without auto_hide

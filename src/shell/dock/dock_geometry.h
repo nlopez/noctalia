@@ -58,8 +58,13 @@ namespace shell::dock {
   [[nodiscard]] LayerSurfaceConfig makeLayerSurfaceConfig(
       const DockConfig& cfg, const ShellConfig::ShadowConfig& shadow, std::size_t itemCount, bool fractionalScale
   );
-  [[nodiscard]] DockPanelGeometry
-  computePanelGeometry(const DockConfig& cfg, const ShellConfig::ShadowConfig& shadow, float surfaceW, float surfaceH);
+  // `itemCount` only matters when `cfg.fullWidthReveal` is active: the panel is then centered
+  // within a `surfaceW`/`surfaceH` that spans the full screen edge, rather than being derived
+  // directly from it, so the tight content size has to be recomputed here too.
+  [[nodiscard]] DockPanelGeometry computePanelGeometry(
+      const DockConfig& cfg, const ShellConfig::ShadowConfig& shadow, float surfaceW, float surfaceH,
+      std::size_t itemCount
+  );
   [[nodiscard]] std::pair<float, float> computeHiddenSlideDelta(
       const DockConfig& cfg, const ShellConfig::ShadowConfig& shadow, float surfaceW, float surfaceH,
       const DockPanelGeometry& panel

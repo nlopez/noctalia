@@ -2068,6 +2068,10 @@
         "ends-margin": {
           "description": "Inset from each end of the dock along its main axis"
         },
+        "full-width-reveal": {
+          "description": "While auto-hidden, reveal the dock by touching anywhere along the screen edge, not just the width of the dock itself",
+          "label": "Full-Width Reveal"
+        },
         "icon-size": {
           "description": "Size of dock icons in pixels",
           "label": "Icon Size"

@@ -1913,6 +1913,7 @@ namespace noctalia::config::schema {
         field(&DockConfig::showRunning, "show_running"),
         field(&DockConfig::autoHide, "auto_hide"),
         field(&DockConfig::smartAutoHide, "smart_auto_hide"),
+        field(&DockConfig::fullWidthReveal, "full_width_reveal"),
         // layer accepts top|overlay; anything else warns and leaves the default.
         custom<DockConfig>(
             "layer",

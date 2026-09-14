@@ -915,6 +915,15 @@ namespace settings {
         ),
         "autohide smart workspace"
     ));
+    {
+      auto e = makeEntry(
+          SettingsSection::Dock, "behavior", tr("settings.schema.dock.full-width-reveal.label"),
+          tr("settings.schema.dock.full-width-reveal.description"), {"dock", "full_width_reveal"},
+          ToggleSetting{cfg.dock.fullWidthReveal}, "edge trigger hover strip screen width"
+      );
+      e.visibleWhen = [](const Config& c) { return c.dock.isAutoHideEnabled(); };
+      entries.push_back(std::move(e));
+    }
     entries.push_back(makeEntry(
         SettingsSection::Dock, "behavior", tr("settings.schema.shared.reserve-space.label"),
         tr("settings.schema.dock.reserve-space.description"), {"dock", "reserve_space"},

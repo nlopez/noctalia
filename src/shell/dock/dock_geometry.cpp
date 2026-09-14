@@ -183,21 +183,46 @@ namespace shell::dock {
 
   std::size_t dockLauncherButtonCount(const DockConfig& cfg) { return dockLauncherButtonCount(cfg.launcherPosition); }
 
+  // The surface's main-axis extent when tightly fit to its content (no full-width reveal): the
+  // icon row itself plus shadow bleed, concave-corner insets, and hover-zoom overhang padding.
+  // computeSurfaceGeometry uses this as `surfaceW`/`surfaceH` outright; computePanelGeometry
+  // recomputes it to center that same footprint when the surface has been widened instead.
+  [[nodiscard]] std::uint32_t
+  dockTightSurfaceW(const DockConfig& cfg, const ShellConfig::ShadowConfig& shadow, std::size_t itemCount) {
+    const auto sb = shell::surface_shadow::bleed(cfg.shadow, shadow);
+    const auto concave = dockConcaveShape(cfg);
+    const int insetL = static_cast<int>(concave.logicalInset.left);
+    const int insetR = static_cast<int>(concave.logicalInset.right);
+    const auto panelW = dockContentSize(cfg, itemCount);
+    const std::int32_t mainPad = dockHoverZoomMainPad(cfg);
+    return static_cast<std::uint32_t>(panelW + sb.left + sb.right + insetL + insetR + mainPad * 2);
+  }
+
+  [[nodiscard]] std::uint32_t
+  dockTightSurfaceH(const DockConfig& cfg, const ShellConfig::ShadowConfig& shadow, std::size_t itemCount) {
+    const auto sb = shell::surface_shadow::bleed(cfg.shadow, shadow);
+    const auto concave = dockConcaveShape(cfg);
+    const int insetT = static_cast<int>(concave.logicalInset.top);
+    const int insetB = static_cast<int>(concave.logicalInset.bottom);
+    const auto panelW = dockContentSize(cfg, itemCount);
+    const std::int32_t mainPad = dockHoverZoomMainPad(cfg);
+    return static_cast<std::uint32_t>(panelW + sb.up + sb.down + insetT + insetB + mainPad * 2);
+  }
+
+  // Full-width reveal only makes sense once the dock can be hidden: it widens the hover strip
+  // used to bring it back, which otherwise matches the dock's own tight content size.
+  [[nodiscard]] bool dockFullWidthRevealActive(const DockConfig& cfg) noexcept {
+    return cfg.fullWidthReveal && cfg.isAutoHideEnabled();
+  }
+
   DockSurfaceGeometry computeSurfaceGeometry(
       const DockConfig& cfg, const ShellConfig::ShadowConfig& shadow, std::size_t itemCount, bool fractionalScale
   ) {
     const DockEdge edge = cfg.position;
     const bool vertical = isVerticalEdge(edge);
     const auto sb = shell::surface_shadow::bleed(cfg.shadow, shadow);
-    const auto concave = dockConcaveShape(cfg);
-    const int insetL = static_cast<int>(concave.logicalInset.left);
-    const int insetT = static_cast<int>(concave.logicalInset.top);
-    const int insetR = static_cast<int>(concave.logicalInset.right);
-    const int insetB = static_cast<int>(concave.logicalInset.bottom);
-    const auto panelW = dockContentSize(cfg, itemCount);
     const auto panelH = dockThickness(cfg);
     const std::int32_t zoomPad = dockHoverZoomCrossPad(cfg);
-    const std::int32_t mainPad = dockHoverZoomMainPad(cfg);
     const std::int32_t edgeBadgePad = dockHoverZoomEdgeBadgePad(cfg);
     const bool isBottom = edge == DockEdge::Bottom;
     const bool isRight = edge == DockEdge::Right;
@@ -207,7 +232,11 @@ namespace shell::dock {
 
     DockSurfaceGeometry geometry;
     if (!vertical) {
-      geometry.surfaceW = static_cast<std::uint32_t>(panelW + sb.left + sb.right + insetL + insetR + mainPad * 2);
+      // 0 with Left|Right also anchored (see positionToAnchor) tells the compositor to fill the
+      // output's width, so the hidden-state hover strip in computeInputRegion spans the whole
+      // screen edge instead of just this dock's own icon row.
+      geometry.surfaceW =
+          dockFullWidthRevealActive(cfg) ? 0 : dockTightSurfaceW(cfg, shadow, itemCount);
       geometry.marginLeft = cfg.marginEnds;
       geometry.marginRight = cfg.marginEnds;
       if (isBottom) {
@@ -233,7 +262,8 @@ namespace shell::dock {
 
     geometry.marginTop = cfg.marginEnds;
     geometry.marginBottom = cfg.marginEnds;
-    geometry.surfaceH = static_cast<std::uint32_t>(panelW + sb.up + sb.down + insetT + insetB + mainPad * 2);
+    // See the !vertical branch above: 0 with Top|Bottom also anchored fills the output's height.
+    geometry.surfaceH = dockFullWidthRevealActive(cfg) ? 0 : dockTightSurfaceH(cfg, shadow, itemCount);
     if (isRight) {
       if (edgeGutter > 0) {
         geometry.surfaceW = static_cast<std::uint32_t>(sb.left + panelH + edgeGutter + zoomPad);
@@ -254,6 +284,18 @@ namespace shell::dock {
     return geometry;
   }
 
+  // Full-width reveal needs the surface anchored on both ends of its cross axis too, so a
+  // requested main-axis size of 0 (see computeSurfaceGeometry) makes the compositor fill it to
+  // the output's extent instead of leaving the surface's position on that axis undefined.
+  [[nodiscard]] std::uint32_t dockLayerAnchor(const DockConfig& cfg) {
+    std::uint32_t anchor = positionToAnchor(cfg.position);
+    if (dockFullWidthRevealActive(cfg)) {
+      anchor |= isVerticalEdge(cfg.position) ? (LayerShellAnchor::Top | LayerShellAnchor::Bottom)
+                                              : (LayerShellAnchor::Left | LayerShellAnchor::Right);
+    }
+    return anchor;
+  }
+
   LayerSurfaceConfig makeLayerSurfaceConfig(
       const DockConfig& cfg, const ShellConfig::ShadowConfig& shadow, std::size_t itemCount, bool fractionalScale
   ) {
@@ -261,7 +303,7 @@ namespace shell::dock {
     return LayerSurfaceConfig{
         .nameSpace = "noctalia-dock",
         .layer = layerShellLayerFromConfig(cfg.layer),
-        .anchor = positionToAnchor(cfg.position),
+        .anchor = dockLayerAnchor(cfg),
         .width = geometry.surfaceW,
         .height = geometry.surfaceH,
         .exclusiveZone = geometry.exclusiveZone,
@@ -274,8 +316,10 @@ namespace shell::dock {
     };
   }
 
-  DockPanelGeometry
-  computePanelGeometry(const DockConfig& cfg, const ShellConfig::ShadowConfig& shadow, float surfaceW, float surfaceH) {
+  DockPanelGeometry computePanelGeometry(
+      const DockConfig& cfg, const ShellConfig::ShadowConfig& shadow, float surfaceW, float surfaceH,
+      std::size_t itemCount
+  ) {
     const DockEdge edge = cfg.position;
     const bool vertical = isVerticalEdge(edge);
     const auto sb = shell::surface_shadow::bleed(cfg.shadow, shadow);
@@ -294,6 +338,7 @@ namespace shell::dock {
     const auto panelThickness = static_cast<float>(dockThickness(cfg));
     const auto mainPad = static_cast<float>(dockHoverZoomMainPad(cfg));
     const auto edgeBadgePad = static_cast<float>(dockHoverZoomEdgeBadgePad(cfg));
+    const bool fullWidth = dockFullWidthRevealActive(cfg);
 
     if (!vertical) {
       float y = isBottom ? surfaceH - std::min(mEdge, bleedD) - panelThickness : edgeBadgePad + std::min(mEdge, bleedU);
@@ -304,10 +349,20 @@ namespace shell::dock {
           y = edgeBadgePad + static_cast<float>(gutter);
         }
       }
+      // Tightly fit, the surface would equal this footprint exactly (panelX == 0 relative to
+      // it); centering that same footprint within the wider full-width-reveal surface keeps the
+      // icon row's own look and feel unchanged while only the hover strip grows.
+      float panelX = bleedL + insetL + mainPad;
+      float panelW = surfaceW - bleedL - bleedR - insetL - insetR - mainPad * 2.0F;
+      if (fullWidth) {
+        const auto tightW = static_cast<float>(dockTightSurfaceW(cfg, shadow, itemCount));
+        panelX += (surfaceW - tightW) / 2.0F;
+        panelW = static_cast<float>(dockContentSize(cfg, itemCount));
+      }
       return DockPanelGeometry{
-          .panelX = bleedL + insetL + mainPad,
+          .panelX = panelX,
           .panelY = y,
-          .panelW = surfaceW - bleedL - bleedR - insetL - insetR - mainPad * 2.0F,
+          .panelW = panelW,
           .panelH = panelThickness,
       };
     }
@@ -320,11 +375,18 @@ namespace shell::dock {
         x = static_cast<float>(gutter);
       }
     }
+    float panelY = bleedU + insetT + mainPad;
+    float panelH = surfaceH - bleedU - bleedD - insetT - insetB - mainPad * 2.0F;
+    if (fullWidth) {
+      const auto tightH = static_cast<float>(dockTightSurfaceH(cfg, shadow, itemCount));
+      panelY += (surfaceH - tightH) / 2.0F;
+      panelH = static_cast<float>(dockContentSize(cfg, itemCount));
+    }
     return DockPanelGeometry{
         .panelX = x,
-        .panelY = bleedU + insetT + mainPad,
+        .panelY = panelY,
         .panelW = panelThickness,
-        .panelH = surfaceH - bleedU - bleedD - insetT - insetB - mainPad * 2.0F,
+        .panelH = panelH,
     };
   }
 
